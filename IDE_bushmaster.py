@@ -4,11 +4,12 @@ import json
 from tkinter import filedialog as fd
 import sys
 import subprocess
+import os
 from bushmaster import help_screen, docs_screen, translate, retranslate
 
 version = "1.0"
 current_file = None
-
+build_extension = "py" #The extension of the main Bushmeister file (such as py, exe and others)
 
 quotation_marks = ["'", '"']
 structural_separators = ["[", "]", "{", "}", "(", ")"]
@@ -77,11 +78,19 @@ def start():
     save()
 
     print(f"\nСТАРТ {current_file}")
-    if current_file is None:
-        subprocess.run(["cmd.exe", "/c", "start", "bushmaster.py"])
+    if os.name == "nt":
+        if current_file is None:
+            subprocess.run(["cmd.exe", "/c", "start", f"bushmaster.{build_extension}"])
+
+        else:
+            subprocess.run(["cmd.exe", "/c", "start", f"bushmaster.{build_extension}", current_file, "-IDE"])
 
     else:
-        subprocess.run(["cmd.exe", "/c", "start", "bushmaster.py", current_file, "-IDE"])
+        if current_file is None:
+            os.system(f"bushmaster.{build_extension}")
+
+        else:
+            os.system(f"bushmaster.{build_extension} {current_file} -IDE")
 
 def new():
     text.delete(1.0, tk.END)
@@ -125,6 +134,7 @@ def exit_():
 
 def help_():
     print(help_screen)
+    print(f"IDE Бушмейстер {version} - среда разработки и обучения для языка программирования Бушмейстер.")
 
 def docs():
     print(docs_screen)
