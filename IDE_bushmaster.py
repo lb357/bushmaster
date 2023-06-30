@@ -175,7 +175,6 @@ def start():
     else:
         if current_file is None:
             os.system(f"./bushmaster.{build_extension}")
-
         else:
             os.system(f"./bushmaster.{build_extension} {current_file} -IDE")
 
@@ -188,9 +187,10 @@ def new():
 def save():
     try:
         global current_file
-        file_name = fd.asksaveasfilename(defaultextension=".*",
+        file_name = fd.asksaveasfilename(defaultextension=".bm", # .* not works on posix
             filetypes=(("Файл скрипта Бушмейстер", ".bm"),
                        ("Файл скрипта Python", ".py")))
+        
         f = open(file_name, 'w', encoding='utf-8')
         s = text.get(1.0, tk.END)
         f.write(s)
