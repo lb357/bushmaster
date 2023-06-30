@@ -6,6 +6,8 @@ import sys
 import subprocess
 import os
 from bushmaster import help_screen, docs_screen, translate, retranslate
+from tkinter.messagebox import showinfo
+import tkinter.font as tkfont
 
 version = "1.0"
 current_file = None
@@ -23,6 +25,10 @@ class CustomText(tk.Text):
         super().__init__(master, *args, **kwargs)
         self.master = master
 
+        font = tkfont.Font(font=self['font'])
+        tab_size = font.measure('    ') # 4 spaces
+        self.config(tabs=tab_size) # set tab size
+        self.focus_set()
         # sample tag
 
     def highlight(self, tag, start, end):
@@ -73,6 +79,87 @@ class CustomText(tk.Text):
         self.highlight_pattern(rf'#(.*)', f"comment")
 
 
+    def select_all(self):
+        self.tag_add(tk.SEL, "1.0", tk.END)
+        self.mark_set(tk.INSERT, "1.0")
+        self.see(tk.INSERT)
+
+    def delete_word(self):
+        self.delete("insert-1c wordstart", "insert")
+        
+    def toggle_comment(self):
+        sel_start, sel_end = self.tag_ranges(tk.SEL)
+
+        if sel_start and sel_end:
+            selected_text = self.get(sel_start, sel_end)
+
+            lines = selected_text.split('\n')
+            is_commented = lines[0].lstrip().startswith('#')
+            modified_lines = []
+            ignore_empty = False
+            for line in lines:
+                stripped_line = line.lstrip()
+                if stripped_line:  # Non-empty line
+                    if is_commented and stripped_line.startswith('#'):
+                        modified_lines.append(line.replace('#', '', 1))
+                    elif not is_commented and not stripped_line.startswith('#'):
+                        modified_lines.append('#' + line.lstrip())
+                    else:
+                        modified_lines.append(line)
+                    ignore_empty = True
+                elif ignore_empty:
+                    modified_lines.append(line)
+
+            modified_text = '\n'.join(modified_lines)
+            self.delete(sel_start, sel_end)
+            self.insert(sel_start, modified_text)
+
+            # Restore the selection
+            self.tag_add(tk.SEL, sel_start, f"{sel_start}+{len(modified_text)}c")
+            self.tag_remove(tk.SEL, f"{sel_start}+{len(modified_text)}c", tk.END)
+
+            return 'break'  # Prevent default behavior
+        
+    def move_line_up(self, event):
+        text_widget = event.widget
+        sel_start, sel_end = map(str, text_widget.tag_ranges(tk.SEL))
+        if sel_start and sel_end:
+            # Get the selected line
+            start_line, _ = map(int, sel_start.split('.'))
+            line_start_index = f"{start_line}.0"
+            line_end_index = f"{start_line}.end"
+            selected_line = text_widget.get(line_start_index, line_end_index)
+
+            # Get the line above the selected line
+            if start_line > 1:
+                prev_line_index = f"{start_line - 1}.0"
+                prev_line_end_index = f"{start_line - 1}.end"
+                prev_line = text_widget.get(prev_line_index, prev_line_end_index)
+            else:
+                prev_line = ""  # Empty line to prevent shifting above first line
+
+            # Move the selected line up by one line
+            text_widget.delete(line_start_index, line_end_index)
+            text_widget.delete(prev_line_index, prev_line_end_index)
+            text_widget.insert(prev_line_index, selected_line + '\n')
+            text_widget.insert(line_start_index, prev_line.rstrip('\n'))
+
+            new_sel_start = f"{start_line - 1}.0"
+            new_sel_end = f"{start_line - 1}.{len(selected_line)}"
+
+            # Delete the extra empty line if it exists
+            extra_line_index = f"{start_line}.{len(selected_line)}"
+            extra_line = text_widget.get(extra_line_index, f"{start_line + 1}.0")
+            if extra_line.strip() == '':
+                text_widget.delete(extra_line_index, f"{start_line + 1}.0")
+
+            # Update the selection range and move the cursor to the new line
+            text_widget.tag_add(tk.SEL, new_sel_start, new_sel_end)
+            text_widget.tag_remove(tk.SEL, sel_end, tk.END)
+            text_widget.mark_set(tk.INSERT, new_sel_start)
+
+            return 'break'  # Prevent default behavior
+                
 def start():
     global current_file
     save()
@@ -87,10 +174,10 @@ def start():
 
     else:
         if current_file is None:
-            os.system(f"bushmaster.{build_extension}")
+            os.system(f"./bushmaster.{build_extension}")
 
         else:
-            os.system(f"bushmaster.{build_extension} {current_file} -IDE")
+            os.system(f"./bushmaster.{build_extension} {current_file} -IDE")
 
 def new():
     text.delete(1.0, tk.END)
@@ -135,9 +222,11 @@ def exit_():
 def help_():
     print(help_screen)
     print(f"IDE Бушмейстер {version} - среда разработки и обучения для языка программирования Бушмейстер.")
+    showinfo(title="Помощь", message=help_screen)
 
 def docs():
     print(docs_screen)
+    showinfo(title="Документация", message=docs_screen)
 
 def translate_():
     txt = translate(text.get(1.0, tk.END))
@@ -181,5 +270,19 @@ if __name__ == "__main__":
     mainmenu.add_cascade(label="Файл", menu=filemenu)
     mainmenu.add_cascade(label="Транслирование", menu=translatemenu)
     mainmenu.add_cascade(label="Помощь", menu=helpmenu)
+
+    # Hotkeys for ui
+    root.bind("<Control-s>", lambda _: save()) # Save file
+    root.bind("<Control-o>", lambda _: open_()) # Open file
+    root.bind("<Control-n>", lambda _: new()) # Create new file
+    root.bind("<F5>", lambda _: start()) # Run file
+    root.bind("<F1>", lambda _: help_())
+
+    # Hotkeys for textbox
+    root.bind("<Control-a>", lambda _: text.select_all()) # Select all text in textbox
+    root.bind("<Control-BackSpace>", lambda _: text.delete_word()) # Delete whole word with ctrl+backspace
+    
+    text.bind("<Control-slash>", lambda _: text.toggle_comment())
+    text.bind("<Alt-Up>", lambda e: text.move_line_up(e))
     root.mainloop()
 
